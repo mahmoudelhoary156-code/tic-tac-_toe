@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe - Pro Edition</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --cell-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent-color: #38bdf8;
+            --x-color: #f43f5e;
+            --o-color: #10b981;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        h1 { margin-bottom: 10px; font-size: 2rem; color: var(--accent-color); }
+
+        /* التحكم في الإعدادات */
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+            background: var(--cell-bg);
+            color: white;
+        }
+
+        button.active { background: var(--accent-color); color: var(--bg-color); }
+        button:hover { opacity: 0.8; }
+
+        /* لوحة اللعبة */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            background: #334155;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            background: var(--cell-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .cell:hover { background: #334155; }
+        .cell.x { color: var(--x-color); }
+        .cell.o { color: var(--o-color); }
+
+        .cell.taken { cursor: not-allowed; }
+
+        /* الحالة والرسائل */
+        .status { margin-top: 20px; font-size: 1.2rem; height: 30px; }
+        
+        .restart-btn {
+            margin-top: 20px;
+            background: var(--accent-color);
+            color: var(--bg-color);
+            width: 100%;
+        }
+
+        /* تأثير الفوز */
+        .winning-cell {
+            background: #334155 !important;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.95); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>إكس أو الاحترافية</h1>
+    
+    <div class="controls">
+        <button id="pveBtn" class="active">ضد الكمبيوتر</button>
+        <button id="pvpBtn">لاعب ضد لاعب</button>
+    </div>
+
+    <div class="status" id="statusText">دور اللاعب X</div>
+
+    <div class="board" id="board">
+        <div class="cell" data-index="0"></div>
+        <div class="cell" data-index="1"></div>
+        <div class="cell" data-index="2"></div>
+        <div class="cell" data-index="3"></div>
+        <div class="cell" data-index="4"></div>
+        <div class="cell" data-index="5"></div>
+        <div class="cell" data-index="6"></div>
+        <div class="cell" data-index="7"></div>
+        <div class="cell" data-index="8"></div>
+    </div>
+
+    <button class="restart-btn" id="restartBtn">إعادة تشغيل</button>
+</div>
+
+<script>
+/**
+ * نظام اللعبة باستخدام البرمجة كائنية التوجه (OOP)
+ */
+class TicTacToe {
+    constructor() {
+        this.board = Array(9).fill(null);
+        this.currentPlayer = 'X'; // X يبدأ دائماً
+        this.isAiMode = true;
+        this.gameActive = true;
+        this.winningStates = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8], // صفوف
+            [0, 3, 6], [1, 4, 7], [2, 5, 8], // أعمدة
+            [0, 4, 8], [2, 4, 6]             // أقطار
+        ];
+
+        // العناصر
+        this.cells = document.querySelectorAll('.cell');
+        this.statusText = document.getElementById('statusText');
+        this.restartBtn = document.getElementById('restartBtn');
+        this.pveBtn = document.getElementById('pveBtn');
+        this.pvpBtn = document.getElementById('pvpBtn');
+
+        this.init();
+    }
+
+    init() {
+        this.cells.forEach(cell => cell.addEventListener('click', (e) => this.handleCellClick(e)));
+        this.restartBtn.addEventListener('click', () => this.restartGame());
+        this.pveBtn.addEventListener('click', () => this.setMode(true));
+        this.pvpBtn.addEventListener('click', () => this.setMode(false));
+    }
+
+    setMode(aiMode) {
+        this.isAiMode = aiMode;
+        this.pveBtn.classList.toggle('active', aiMode);
+        this.pvpBtn.classList.toggle('active', !aiMode);
+        this.restartGame();
+    }
+
+    handleCellClick(e) {
+        const index = e.target.dataset.index;
+
+        if (this.board[index] || !this.gameActive) return;
+
+        this.makeMove(index, this.currentPlayer);
+
+        if (this.gameActive && this.isAiMode && this.currentPlayer === 'O') {
+            // إضافة تأخير بسيط ليشعر اللاعب أن الكمبيوتر "يفكر"
+            setTimeout(() => this.aiMove(), 400);
+        }
+    }
+
+    makeMove(index, player) {
+        this.board[index] = player;
+        this.cells[index].innerText = player;
+        this.cells[index].classList.add(player.toLowerCase(), 'taken');
+
+        if (this.checkWin(this.board, player)) {
+            this.endGame(player);
+        } else if (this.board.every(cell => cell !== null)) {
+            this.endGame('draw');
+        } else {
+            this.currentPlayer = this.currentPlayer === 'X' ? 'O' : 'X';
+            this.statusText.innerText = `دور اللاعب ${this.currentPlayer}`;
+        }
+    }
+
+    /**
+     * الذكاء الاصطناعي - خوارزمية Minimax
+     */
+    aiMove() {
+        let bestScore = -Infinity;
+        let move;
+        
+        for (let i = 0; i < 9; i++) {
+            if (this.board[i] === null) {
+                this.board[i] = 'O';
+                let score = this.minimax(this.board, 0, false);
+                this.board[i] = null;
+                if (score > bestScore) {
+                    bestScore = score;
+                    move = i;
+                }
+            }
+        }
+        this.makeMove(move, 'O');
+    }
+
+    minimax(board, depth, isMaximizing) {
+        if (this.checkWin(board, 'O')) return 10 - depth;
+        if (this.checkWin(board, 'X')) return depth - 10;
+        if (board.every(cell => cell !== null)) return 0;
+
+        if (isMaximizing) {
+            let bestScore = -Infinity;
+            for (let i = 0; i < 9; i++) {
+                if (board[i] === null) {
+                    board[i] = 'O';
+                    let score = this.minimax(board, depth + 1, false);
+                    board[i] = null;
+                    bestScore = Math.max(score, bestScore);
+                }
+            }
+            return bestScore;
+        } else {
+            let bestScore = Infinity;
+            for (let i = 0; i < 9; i++) {
+                if (board[i] === null) {
+                    board[i] = 'X';
+                    let score = this.minimax(board, depth + 1, true);
+                    board[i] = null;
+                    bestScore = Math.min(score, bestScore);
+                }
+            }
+            return bestScore;
+        }
+    }
+
+    checkWin(board, player) {
+        return this.winningStates.some(combination => {
+            return combination.every(index => board[index] === player);
+        });
+    }
+
+    endGame(result) {
+        this.gameActive = false;
+        if (result === 'draw') {
+            this.statusText.innerText = "تعادل!";
+        } else {
+            this.statusText.innerText = `الفائز هو ${result}!`;
+            this.highlightWinner(result);
+        }
+    }
+
+    highlightWinner(player) {
+        this.winningStates.forEach(combination => {
+            if (combination.every(index => this.board[index] === player)) {
+                combination.forEach(index => this.cells[index].classList.add('winning-cell'));
+            }
+        });
+    }
+
+    restartGame() {
+        this.board = Array(9).fill(null);
+        this.currentPlayer = 'X';
+        this.gameActive = true;
+        this.statusText.innerText = "دور اللاعب X";
+        this.cells.forEach(cell => {
+            cell.innerText = "";
+            cell.classList.remove('x', 'o', 'taken', 'winning-cell');
+        });
+    }
+}
+
+// تشغيل اللعبة عند تحميل الصفحة
+const game = new TicTacToe();
+</script>
+
+</body>
+</html>
